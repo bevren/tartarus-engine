@@ -4,6 +4,24 @@ let viewStack =  [];
 let nav = document.getElementById("nav");
 let listeners = [];
 let socket = null;
+
+// Dialogs
+const editGlobalChipDialog = document.getElementById('editGlobalChipDialog');
+const globalChipListContainer = document.getElementById('globalChipListContainer');
+const cancelSelectGlobalChip = document.getElementById('cancelSelectGlobalChip');
+const selectGlobalChipButton = document.getElementById('selectGlobalChipButton');
+const closeEditGlobalChipDialog = document.getElementById('closeEditGlobalChipDialog');
+
+const saveDiscardChipDialog = document.getElementById('saveDiscardChipDialog');
+const saveDiscardTitle = document.getElementById('saveDiscardTitle');
+const saveDiscardMessage = document.getElementById('saveDiscardMessage');
+const saveChipButton = document.getElementById('saveChipButton');
+const discardChipButton = document.getElementById('discardChipButton');
+const cancelSaveDiscardButton = document.getElementById('cancelSaveDiscardButton');
+const closeSaveDiscardDialog = document.getElementById('closeSaveDiscardDialog');
+
+let pendingChipSwitchAction = null; // To store the action (function) to execute after save/discard
+
 // Colors
 const BLACK = 'rgb(0, 0, 0)';
 const WHITE = 'rgb(255, 255, 255)';
@@ -70,6 +88,7 @@ function createChipNode(chipDefinition) {
     // Position node based on where the context menu/search was actioned
     node.position = new Vector2(mousePos.x, mousePos.y);
     currentChip.addNode(node);
+    if (currentChip) currentChip.markDirty();
     selectedNodes = [node];
     hideContextMenu(contextMenuIdle); // Assuming called from search, which handles its own hiding
     drawScene();
@@ -249,6 +268,7 @@ function createNode(nodeType) {
 
     node.position = mousePos;
     currentChip.addNode(node);
+    if (currentChip) currentChip.markDirty();
     selectedNodes = [];
     selectedNodes.push(node);
 
@@ -286,35 +306,61 @@ function addChip(chip) {
 }
 
 function switchToGlobalChip(chipId) {
-    const chip = chips.find(c => c.id === chipId);
-    if (chip) {
-        if (currentChip) {
-            viewStack.push(currentChip); 
+    const action = () => {
+        const chip = chips.find(c => c.id === chipId);
+        if (chip) {
+            if (currentChip && currentChip.id !== chip.id) { // Don't push if switching to the same chip
+                viewStack.push(currentChip);
+            }
+            currentChip = chip;
+            updateViewPath();
+            reset();
+            drawScene();
+        } else {
+            // This case for "Temp" chip seems specific and might need review if it's still needed.
+            // For now, let's assume it's a valid scenario.
+            const tempChip = new Chip(null, "Temp");
+            if (currentChip) {
+                viewStack.push(currentChip);
+            }
+            currentChip = tempChip;
+            updateViewPath();
+            reset();
+            drawScene();
         }
-        currentChip = chip;
-        updateViewPath();
-    }else {
-        const tempChip = new Chip(null, "Temp");
-        viewStack.push(currentChip); 
+    };
 
-        currentChip = tempChip;
-
-        updateViewPath();
+    if (currentChip && currentChip.isDirty) {
+        pendingChipSwitchAction = action;
+        saveDiscardTitle.textContent = `Unsaved Changes in "${currentChip.name}"`;
+        saveDiscardMessage.textContent = `Chip "${currentChip.name}" has unsaved changes. Save before switching?`;
+        saveDiscardChipDialog.showModal();
+    } else {
+        action();
     }
-
-    reset();
 }
 
-function switchToChip(chip) {
-    if (chip) {
-        if (currentChip) {
-            viewStack.push(currentChip); 
+function switchToChip(chipToSwitchTo) {
+    const action = () => {
+        if (chipToSwitchTo) {
+            if (currentChip && currentChip.id !== chipToSwitchTo.id) { // Don't push if switching to the same chip
+                viewStack.push(currentChip);
+            }
+            currentChip = chipToSwitchTo;
+            updateViewPath();
+            reset();
+            drawScene();
         }
-        currentChip = chip;
-        updateViewPath();
-    }
+    };
 
-    reset();
+    if (currentChip && currentChip.isDirty && chipToSwitchTo && currentChip.id !== chipToSwitchTo.id) {
+        pendingChipSwitchAction = action;
+        saveDiscardTitle.textContent = `Unsaved Changes in "${currentChip.name}"`;
+        saveDiscardMessage.textContent = `Chip "${currentChip.name}" has unsaved changes. Save before opening "${chipToSwitchTo.name}"?`;
+        saveDiscardChipDialog.showModal();
+    } else {
+        action();
+    }
 }
 
 
@@ -342,13 +388,25 @@ function popView() {
     }
 
     if (viewStack.length > 0) {
-        currentChip = viewStack.pop();
-        updateViewPath();
-        reset();
-        drawScene();
+        const targetChip = viewStack.pop(); // Temporarily pop to check
+        
+        const action = () => {
+            currentChip = targetChip; // Actual switch
+            updateViewPath();
+            reset();
+            drawScene();
+        };
 
+        if (currentChip && currentChip.isDirty) {
+            viewStack.push(targetChip); // Push back because we haven't switched yet
+            pendingChipSwitchAction = action;
+            saveDiscardTitle.textContent = `Unsaved Changes in "${currentChip.name}"`;
+            saveDiscardMessage.textContent = `Chip "${currentChip.name}" has unsaved changes. Save before going back?`;
+            saveDiscardChipDialog.showModal();
+        } else {
+            action(); // Proceed with switch
+        }
     }
-
 }
 
 function serialize() {
@@ -373,13 +431,29 @@ function getViewPath() {
 
 
 
-function popUntil(i) {
-    console.log(i, viewStack.length - 1);
-    while (viewStack.length > i) {
-        popView();
-    }
+function popUntil(targetIndex) {
+    const action = () => {
+        while (viewStack.length > targetIndex) {
+            currentChip = viewStack.pop();
+        }
+        updateViewPath();
+        reset();
+        drawScene();
+    };
 
-    updateViewPath();
+    if (currentChip && currentChip.isDirty && viewStack.length > targetIndex) {
+        // Check if the target is different from the current one
+        if (!viewStack[targetIndex] || viewStack[targetIndex].id !== currentChip.id) {
+            pendingChipSwitchAction = action;
+            saveDiscardTitle.textContent = `Unsaved Changes in "${currentChip.name}"`;
+            saveDiscardMessage.textContent = `Chip "${currentChip.name}" has unsaved changes. Save before navigating?`;
+            saveDiscardChipDialog.showModal();
+        } else {
+             action(); // Navigating to the same chip essentially, or no actual switch needed
+        }
+    } else {
+        action();
+    }
 }
 
 function updateViewPath() {
@@ -538,6 +612,7 @@ function deleteConnection(conn) {
          hoveredElement = null;
     }
    
+    if (currentChip) currentChip.markDirty();
     hideContextMenu(contextMenuConnection);
     clearInfoBar();
     drawScene();
@@ -568,6 +643,7 @@ function deleteNode(node) {
         return connection.port1.node !== node && connection.port2.node !== node;
     });
 
+    if (currentChip) currentChip.markDirty();
 }
 //564129
 function toggleConnection(port) {
@@ -1387,6 +1463,40 @@ function handleKeyDown(e) {
         console.log("new");
     }
 
+    if (e.key === 'F3') {
+        e.preventDefault();
+        const openEditGlobalChipDialog = () => {
+            globalChipListContainer.innerHTML = ''; // Clear previous items
+            chips.forEach(chip => {
+                if (chip.name === 'main') {
+                    return; // Skip the 'main' chip
+                }
+                const chipItemDiv = document.createElement('div');
+                chipItemDiv.textContent = chip.name;
+                chipItemDiv.dataset.id = chip.id;
+                chipItemDiv.className = 'global-chip-list-item';
+                chipItemDiv.addEventListener('click', () => {
+                    const currentlySelected = globalChipListContainer.querySelector('.global-chip-list-item.selected');
+                    if (currentlySelected) {
+                        currentlySelected.classList.remove('selected');
+                    }
+                    chipItemDiv.classList.add('selected');
+                });
+                globalChipListContainer.appendChild(chipItemDiv);
+            });
+            editGlobalChipDialog.showModal();
+        };
+
+        if (currentChip && currentChip.isDirty) {
+            pendingChipSwitchAction = openEditGlobalChipDialog;
+            saveDiscardTitle.textContent = `Unsaved Changes in "${currentChip.name}"`;
+            saveDiscardMessage.textContent = `Chip "${currentChip.name}" has unsaved changes. Save before opening the global chip selector?`;
+            saveDiscardChipDialog.showModal();
+        } else {
+            openEditGlobalChipDialog();
+        }
+    }
+
     drawScene();
 }
 
@@ -1488,6 +1598,7 @@ function renderPorts(node) {
             messageField.placeholder = 'Message Name';
             messageField.addEventListener('input', (e) => {
                 node.message = e.target.value;  // Update the port name in the node
+                if (currentChip) currentChip.markDirty();
             });
 
             const labelField = document.createElement('label');
@@ -1523,6 +1634,7 @@ function renderPorts(node) {
         addInputPortButton.addEventListener('click', () => {
             
             node.addPort();
+            if (currentChip) currentChip.markDirty();
             drawScene();
             
             currentChip.connections.forEach((c, i) => {
@@ -1556,6 +1668,7 @@ function renderPorts(node) {
         addOutputPortButton.addEventListener('click', () => {
             
             node.addPort("output");
+            if (currentChip) currentChip.markDirty();
             drawScene();
             
             currentChip.connections.forEach((c, i) => {
@@ -1587,6 +1700,7 @@ function renderPorts(node) {
                 if(port.antiPort !== null) {
                     port.antiPort.name = e.target.value;
                 }
+                if (currentChip) currentChip.markDirty();
             });
 
             const descField = document.createElement('input');
@@ -1596,6 +1710,7 @@ function renderPorts(node) {
             descField.placeholder = 'Port Description';
             descField.addEventListener('input', (e) => {
                 port.description = e.target.value;  // Update the description
+                if (currentChip) currentChip.markDirty();
             });
 
             // Remove button
@@ -1604,6 +1719,7 @@ function renderPorts(node) {
             removeButton.addEventListener('click', () => {
                 
                 node.ports.inputs.splice(index, 1);
+                if (currentChip) currentChip.markDirty();
                 drawScene();
 
                 currentChip.connections.forEach((c, i) => {
@@ -1640,6 +1756,7 @@ function renderPorts(node) {
             nameField.placeholder = 'Port Name';
             nameField.addEventListener('input', (e) => {
                 port.name = e.target.value;  // Update the port name in the node
+                if (currentChip) currentChip.markDirty();
             });
 
             const descField = document.createElement('input');
@@ -1649,6 +1766,7 @@ function renderPorts(node) {
             descField.placeholder = 'Port Description';
             descField.addEventListener('input', (e) => {
                 port.description = e.target.value;  // Update the description
+                if (currentChip) currentChip.markDirty();
             });
 
             // Remove button
@@ -1657,6 +1775,7 @@ function renderPorts(node) {
             removeButton.addEventListener('click', () => {
                 
                 node.ports.outputs.splice(index, 1);
+                if (currentChip) currentChip.markDirty();
                 drawScene();
 
                 currentChip.connections.forEach((c, i) => {
@@ -1693,6 +1812,7 @@ function renderPorts(node) {
             nameField.placeholder = 'Name of Input';
             nameField.addEventListener('input', (e) => {
                 node.ports.outputs[0].name = e.target.value;  // Update the port name in the node
+                if (currentChip) currentChip.markDirty();
             });
 
             const labelField = document.createElement('label');
@@ -1710,6 +1830,7 @@ function renderPorts(node) {
             nameField.placeholder = 'Name of Output';
             nameField.addEventListener('input', (e) => {
                 node.ports.inputs[0].name = e.target.value;  // Update the port name in the node
+                if (currentChip) currentChip.markDirty();
             });
 
             const labelField = document.createElement('label');
@@ -1780,7 +1901,7 @@ dialogCloseButton.addEventListener("click", (e) => {
 
 saveNewChipButton.addEventListener("click", (e) => {
     // Assume an input field with ID 'chipNameInput' exists in your dialog HTML
-    const chipNameInput = document.getElementById('chipNameInput'); 
+    const chipNameInput = document.getElementById('chipNameInput');
     if (!chipNameInput) {
         console.error("Chip name input field (id='chipNameInput') not found in the dialog.");
         alert("Error: Chip name input field not found.");
@@ -1794,7 +1915,6 @@ saveNewChipButton.addEventListener("click", (e) => {
         return;
     }
 
-    // Optional: Check for duplicate chip names if desired
     const existingChip = chips.find(c => c.name === chipName);
     if (existingChip) {
         alert(`A chip with the name "${chipName}" already exists. Please choose a different name.`);
@@ -1802,24 +1922,143 @@ saveNewChipButton.addEventListener("click", (e) => {
         return;
     }
 
-    const newChip = new Chip(null, chipName); // ID will be auto-generated by Chip constructor
-    addChip(newChip); // Add to the global chips array
+    const newChip = new Chip(null, chipName);
+    addChip(newChip);
 
-    // Switch to the new chip's editor mode
-    if (currentChip) {
-        viewStack.push(currentChip);
-    }
-    currentChip = newChip;
-
-    updateViewPath(); // Update the navigation breadcrumbs
-    reset();          // Clear selections, drawing states, etc. for the new view
+    const action = () => {
+        if (currentChip) {
+            viewStack.push(currentChip);
+        }
+        currentChip = newChip;
+        updateViewPath();
+        reset();
+        drawScene();
+        if (chipNameInput) chipNameInput.value = ''; 
+        createNewChipDialog.close();
+    };
     
-    createNewChipDialog.close();
-    if (chipNameInput) chipNameInput.value = ''; // Clear the input for next time
-
-    drawScene();      // Redraw the canvas to show the new chip's environment
+    if (currentChip && currentChip.isDirty) {
+        pendingChipSwitchAction = action;
+        saveDiscardTitle.textContent = `Unsaved Changes in "${currentChip.name}"`;
+        saveDiscardMessage.textContent = `Chip "${currentChip.name}" has unsaved changes. Save before creating and switching to "${chipName}"?`;
+        saveDiscardChipDialog.showModal();
+    } else {
+        action();
+    }
 });
 
+
+if (cancelSelectGlobalChip) {
+    cancelSelectGlobalChip.addEventListener('click', () => {
+        editGlobalChipDialog.close();
+    });
+}
+
+if (closeEditGlobalChipDialog) {
+    closeEditGlobalChipDialog.addEventListener('click', () => {
+        editGlobalChipDialog.close();
+    });
+}
+
+if (selectGlobalChipButton) {
+    selectGlobalChipButton.addEventListener('click', () => {
+        const selectedChipItem = globalChipListContainer.querySelector('.global-chip-list-item.selected');
+        if (selectedChipItem) {
+            const chipId = selectedChipItem.dataset.id;
+            const chipToSelect = chips.find(c => c.id === chipId);
+
+            if (chipToSelect) {
+                const action = () => {
+                    if (currentChip && currentChip.id !== chipToSelect.id) {
+                        viewStack.push(currentChip);
+                    }
+                    currentChip = chipToSelect;
+                    updateViewPath();
+                    reset();
+                    drawScene();
+                    editGlobalChipDialog.close();
+                };
+
+                if (currentChip && currentChip.isDirty && currentChip.id !== chipToSelect.id) {
+                    pendingChipSwitchAction = action;
+                    saveDiscardTitle.textContent = `Unsaved Changes in "${currentChip.name}"`;
+                    saveDiscardMessage.textContent = `Chip "${currentChip.name}" has unsaved changes. Save before switching to "${chipToSelect.name}"?`;
+                    saveDiscardChipDialog.showModal();
+                } else {
+                    action(); // No unsaved changes or switching to the same chip
+                }
+            } else {
+                console.error("Selected chip not found in chips array.");
+                alert("Error: Could not find the selected chip.");
+            }
+        } else {
+            alert("Please select a chip from the list.");
+        }
+    });
+}
+
+function saveGlobalChipChanges(chipToSave) {
+    if (!chipToSave) return;
+
+    chips.forEach(chipInstance => {
+        chipInstance.nodes.forEach(node => {
+            if (node instanceof ChipNode && node.chipData && node.chipData.id === chipToSave.id) {
+                // Update the chipData reference for this instance
+                node.chipData = chipToSave; 
+                // Resync ports based on the new chipData
+                node.resyncPortsFromChipData();
+                // Mark the chip instance containing this ChipNode as dirty, as its structure might have changed
+                if (chipInstance.id !== chipToSave.id) { // Don't mark the chip being saved as dirty again by itself
+                  chipInstance.markDirty();
+                }
+            }
+        });
+    });
+    drawScene(); // Refresh the scene as node appearances might change
+}
+
+// Event listeners for saveDiscardChipDialog
+if (saveChipButton) {
+    saveChipButton.addEventListener('click', () => {
+        if (currentChip) {
+            saveGlobalChipChanges(currentChip); // Save changes to all instances
+            console.log(`Saved changes for chip: ${currentChip.name} and updated instances.`);
+            currentChip.clearDirty(); // Mark as no longer dirty
+        }
+        saveDiscardChipDialog.close();
+        if (pendingChipSwitchAction) {
+            pendingChipSwitchAction();
+            pendingChipSwitchAction = null;
+        }
+    });
+}
+
+if (discardChipButton) {
+    discardChipButton.addEventListener('click', () => {
+        if (currentChip) {
+            currentChip.clearDirty(); // Mark as no longer dirty, changes are discarded
+        }
+        saveDiscardChipDialog.close();
+        if (pendingChipSwitchAction) {
+            pendingChipSwitchAction();
+            pendingChipSwitchAction = null;
+        }
+    });
+}
+
+if (cancelSaveDiscardButton) {
+    cancelSaveDiscardButton.addEventListener('click', () => {
+        pendingChipSwitchAction = null; // Cancel the pending action
+        saveDiscardChipDialog.close();
+    });
+}
+
+if (closeSaveDiscardDialog) {
+    closeSaveDiscardDialog.addEventListener('click', () => {
+        pendingChipSwitchAction = null; // Also cancel if closed via 'X'
+        saveDiscardChipDialog.close();
+    });
+}
 
 
 const webSocketInput = document.getElementById("webSocketInput");

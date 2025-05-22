@@ -1289,6 +1289,36 @@ class ChipNode extends Node {
         super.draw(ctx); // Draw as a standard node box with name and ports
     }
 
+    resyncPortsFromChipData() {
+        this.ports.inputs = [];
+        this.ports.outputs = [];
+
+        if (!this.chipData || !this.chipData.nodes) return;
+
+        this.chipData.nodes.forEach(n => {
+            if (n instanceof ChipIONode) {
+                if (n.type === "input") {
+                    const port = this.addPort("input", n.ports.outputs[0].name);
+                    port.antiPort = n.ports.outputs[0];
+                    // Ensure antiPort is linked back if the ChipIONode's port was also just created/resynced
+                    if (n.ports.outputs[0]) {
+                        n.ports.outputs[0].antiPort = port;
+                    }
+                } else if (n.type === "output") {
+                    const port = this.addPort("output", n.ports.inputs[0].name);
+                    port.antiPort = n.ports.inputs[0];
+                    // Ensure antiPort is linked back
+                    if (n.ports.inputs[0]) {
+                        n.ports.inputs[0].antiPort = port;
+                    }
+                }
+            }
+        });
+        // Recalculate height/width implicitly handled by draw or explicitly if needed
+        // this.height = this.calculateHeight(); 
+        // this.width = this.calculateWidth(); // assuming calculateWidth exists and is appropriate
+    }
+
     clone() {
         
         let clonedNode = new ChipNode(null, this.chipBelongsTo, this.chipData);
@@ -1324,6 +1354,7 @@ class Chip {
         this.nodes = [];
         this.connections = [];
         this.name = name || "Untitled";
+        this.isDirty = false;
         this.nodes.push(new ChipIONode(this, "input"));
         this.nodes.push(new ChipIONode(this, "input"));
         this.nodes.push(new ChipIONode(this, "input"));
@@ -1340,9 +1371,17 @@ class Chip {
         
     }
 
+    markDirty() {
+        this.isDirty = true;
+    }
+
+    clearDirty() {
+        this.isDirty = false;
+    }
 
     addNode(node) {
         this.nodes.push(node);
+        this.markDirty();
     }
 
     removeNode(nodeId) {
@@ -1350,11 +1389,13 @@ class Chip {
         this.connections = this.connections.filter(connection => 
             connection.port1.node.id !== nodeId && connection.port2.node.id !== nodeId
         );
+        this.markDirty();
     }
 
     addConnection(connection) {
         //this.connections.unshift(connection);
         this.connections.push(connection);
+        this.markDirty();
     }
 
     serialize() {
