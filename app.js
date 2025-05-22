@@ -1254,15 +1254,14 @@ class ChipNode extends Node {
         this.chipData.nodes.forEach(n => {
             if(n instanceof ChipIONode) {
                 if(n.type === "input") {
-
                     const port = this.addPort("input", n.ports.outputs[0].name);
                     port.antiPort = n.ports.outputs[0];
+                    // n.ports.outputs[0].antiPort = port; // Removed
                 }
                 else if(n.type === "output") {
                     const port = this.addPort("output", n.ports.inputs[0].name);
                     port.antiPort = n.ports.inputs[0];
-
-                    n.ports.inputs[0].antiPort = port;
+                    // n.ports.inputs[0].antiPort = port; // Removed
                 }
             }
         });
@@ -1301,22 +1300,43 @@ class ChipNode extends Node {
                     const port = this.addPort("input", n.ports.outputs[0].name);
                     port.antiPort = n.ports.outputs[0];
                     // Ensure antiPort is linked back if the ChipIONode's port was also just created/resynced
-                    if (n.ports.outputs[0]) {
-                        n.ports.outputs[0].antiPort = port;
-                    }
+                    // if (n.ports.outputs[0]) { // Removed
+                    //     n.ports.outputs[0].antiPort = port; // Removed
+                    // } // Removed
                 } else if (n.type === "output") {
                     const port = this.addPort("output", n.ports.inputs[0].name);
                     port.antiPort = n.ports.inputs[0];
                     // Ensure antiPort is linked back
-                    if (n.ports.inputs[0]) {
-                        n.ports.inputs[0].antiPort = port;
-                    }
+                    // if (n.ports.inputs[0]) { // Removed
+                    //     n.ports.inputs[0].antiPort = port; // Removed
+                    // } // Removed
                 }
             }
         });
         // Recalculate height/width implicitly handled by draw or explicitly if needed
         // this.height = this.calculateHeight(); 
         // this.width = this.calculateWidth(); // assuming calculateWidth exists and is appropriate
+    }
+
+    _updateOutputPortsFromChipData() {
+        this.ports.outputs.forEach(outputPort => {
+            if (outputPort.antiPort) { // antiPort points to the ChipIONode's input port inside chipData
+                const internalChipIOState = outputPort.antiPort.state;
+                if (outputPort.state !== internalChipIOState) {
+                    outputPort.state = internalChipIOState; // Update the ChipNode's output port state
+
+                    // Manually trigger propagation for connections originating from this outputPort
+                    if (this.chipBelongsTo && this.chipBelongsTo.connections) {
+                        this.chipBelongsTo.connections.forEach(conn => {
+                            if (conn.port1 && conn.port1.id === outputPort.id && conn.port2) {
+                                conn.port2.receiveInput(outputPort.state);
+                                conn.on = (outputPort.state === PinState.HIGH);
+                            }
+                        });
+                    }
+                }
+            }
+        });
     }
 
     clone() {

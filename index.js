@@ -969,6 +969,9 @@ function drawScene() {
     });
 
     for (let node of currentChip.nodes) {
+        if (node instanceof ChipNode) {
+            node._updateOutputPortsFromChipData(); // Call the new method
+        }
         node.draw(ctx);
 
         for (let port of [...node.ports.inputs, ...node.ports.outputs]) {
