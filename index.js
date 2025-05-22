@@ -330,7 +330,7 @@ function switchToGlobalChip(chipId) {
         }
     };
 
-    if (currentChip && currentChip.isDirty) {
+    if (currentChip && currentChip.isDirty && currentChip.name !== 'main') {
         pendingChipSwitchAction = action;
         saveDiscardTitle.textContent = `Unsaved Changes in "${currentChip.name}"`;
         saveDiscardMessage.textContent = `Chip "${currentChip.name}" has unsaved changes. Save before switching?`;
@@ -353,7 +353,7 @@ function switchToChip(chipToSwitchTo) {
         }
     };
 
-    if (currentChip && currentChip.isDirty && chipToSwitchTo && currentChip.id !== chipToSwitchTo.id) {
+    if (currentChip && currentChip.isDirty && currentChip.name !== 'main' && chipToSwitchTo && currentChip.id !== chipToSwitchTo.id) {
         pendingChipSwitchAction = action;
         saveDiscardTitle.textContent = `Unsaved Changes in "${currentChip.name}"`;
         saveDiscardMessage.textContent = `Chip "${currentChip.name}" has unsaved changes. Save before opening "${chipToSwitchTo.name}"?`;
@@ -397,7 +397,7 @@ function popView() {
             drawScene();
         };
 
-        if (currentChip && currentChip.isDirty) {
+        if (currentChip && currentChip.isDirty && currentChip.name !== 'main') {
             viewStack.push(targetChip); // Push back because we haven't switched yet
             pendingChipSwitchAction = action;
             saveDiscardTitle.textContent = `Unsaved Changes in "${currentChip.name}"`;
@@ -441,7 +441,7 @@ function popUntil(targetIndex) {
         drawScene();
     };
 
-    if (currentChip && currentChip.isDirty && viewStack.length > targetIndex) {
+    if (currentChip && currentChip.isDirty && currentChip.name !== 'main' && viewStack.length > targetIndex) {
         // Check if the target is different from the current one
         if (!viewStack[targetIndex] || viewStack[targetIndex].id !== currentChip.id) {
             pendingChipSwitchAction = action;
@@ -1505,7 +1505,7 @@ function handleKeyDown(e) {
             editGlobalChipDialog.showModal();
         };
 
-        if (currentChip && currentChip.isDirty) {
+        if (currentChip && currentChip.isDirty && currentChip.name !== 'main') {
             pendingChipSwitchAction = openEditGlobalChipDialog;
             saveDiscardTitle.textContent = `Unsaved Changes in "${currentChip.name}"`;
             saveDiscardMessage.textContent = `Chip "${currentChip.name}" has unsaved changes. Save before opening the global chip selector?`;
@@ -1955,7 +1955,7 @@ saveNewChipButton.addEventListener("click", (e) => {
         createNewChipDialog.close();
     };
     
-    if (currentChip && currentChip.isDirty) {
+    if (currentChip && currentChip.isDirty && currentChip.name !== 'main') {
         pendingChipSwitchAction = action;
         saveDiscardTitle.textContent = `Unsaved Changes in "${currentChip.name}"`;
         saveDiscardMessage.textContent = `Chip "${currentChip.name}" has unsaved changes. Save before creating and switching to "${chipName}"?`;
@@ -1997,7 +1997,7 @@ if (selectGlobalChipButton) {
                     editGlobalChipDialog.close();
                 };
 
-                if (currentChip && currentChip.isDirty && currentChip.id !== chipToSelect.id) {
+                if (currentChip && currentChip.isDirty && currentChip.name !== 'main' && currentChip.id !== chipToSelect.id) {
                     pendingChipSwitchAction = action;
                     saveDiscardTitle.textContent = `Unsaved Changes in "${currentChip.name}"`;
                     saveDiscardMessage.textContent = `Chip "${currentChip.name}" has unsaved changes. Save before switching to "${chipToSelect.name}"?`;

@@ -1402,6 +1402,32 @@ class Chip {
         
     }
 
+    removeConnectionsForPort(portId) {
+        console.log('[DEBUG] Chip:', this.id, 'Attempting to remove connections for portId:', portId);
+        let connectionsRemoved = 0;
+        this.connections = this.connections.filter(conn => {
+            let shouldRemove = false;
+            if (conn.port1 && conn.port1.id === portId) {
+                shouldRemove = true;
+                if (conn.port2) conn.port2.onConnectionRemoved(); // Notify other end
+            }
+            if (conn.port2 && conn.port2.id === portId) {
+                shouldRemove = true;
+                if (conn.port1) conn.port1.onConnectionRemoved(); // Notify other end
+            }
+            
+            if (shouldRemove) {
+                console.log('[DEBUG] Chip:', this.id, 'Removing connection:', conn.id, 'associated with portId:', portId);
+                connectionsRemoved++;
+                return false; // Remove connection
+            }
+            return true; // Keep connection
+        });
+        if (connectionsRemoved > 0) {
+           //  this.markDirty(); // Already marked dirty by saveGlobalChipChanges or resync caller
+        }
+    }
+
     markDirty() {
         this.isDirty = true;
     }
