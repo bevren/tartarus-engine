@@ -1329,6 +1329,21 @@ function handleMouseMove(e) {
 
         selectedNodes.forEach(node => {
             node.updatePosition(tx, ty);
+
+            // Recalculate port positions for the current node
+            const nodeWidth = node.width; 
+            const nodeHeight = node.calculateHeight();
+
+            if (node.ports && node.ports.inputs) {
+                node.ports.inputs.forEach((port, index, arr) => {
+                    port.calculatePosition(nodeWidth, nodeHeight, index, arr.length);
+                });
+            }
+            if (node.ports && node.ports.outputs) {
+                node.ports.outputs.forEach((port, index, arr) => {
+                    port.calculatePosition(nodeWidth, nodeHeight, index, arr.length);
+                });
+            }
             
             currentChip.connections.forEach(conn => {
 
@@ -2009,7 +2024,9 @@ function saveGlobalChipChanges(chipToSave) {
                 // Update the chipData reference for this instance
                 node.chipData = chipToSave; 
                 // Resync ports based on the new chipData
+                console.log('[DEBUG] saveGlobalChipChanges: About to call resyncPortsFromChipData for ChipNode instance:', node.id, 'Its chipData ID is:', node.chipData ? node.chipData.id : 'N/A', 'chipToSave ID is:', chipToSave.id);
                 node.resyncPortsFromChipData();
+                console.log('[DEBUG] saveGlobalChipChanges: Finished resyncPortsFromChipData for ChipNode instance:', node.id);
                 // Mark the chip instance containing this ChipNode as dirty, as its structure might have changed
                 if (chipInstance.id !== chipToSave.id) { // Don't mark the chip being saved as dirty again by itself
                   chipInstance.markDirty();

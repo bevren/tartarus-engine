@@ -172,9 +172,11 @@ class Node {
     }
 
     draw(ctx) {
+        if (this instanceof ChipNode) { console.log('[DEBUG] Node.draw called for ChipNode:', this.id, 'Input ports:', this.ports.inputs.length, 'Output ports:', this.ports.outputs.length, 'Height:', this.height); }
 
         this.calculateWidth(ctx);
         this.height = this.calculateHeight();
+        if (this instanceof ChipNode) { console.log('[DEBUG] ChipNode:', this.id, 'height calculated in draw:', this.height); }
 
         // Draw the node (rectangle)
         ctx.fillStyle = 'lightblue';
@@ -1289,8 +1291,10 @@ class ChipNode extends Node {
     }
 
     resyncPortsFromChipData() {
+        console.log('[DEBUG] resyncPortsFromChipData called for ChipNode:', this.id, 'Current chipData ID:', this.chipData ? this.chipData.id : 'N/A');
         this.ports.inputs = [];
         this.ports.outputs = [];
+        console.log('[DEBUG] ChipNode:', this.id, 'ports arrays cleared.');
 
         if (!this.chipData || !this.chipData.nodes) return;
 
@@ -1298,6 +1302,7 @@ class ChipNode extends Node {
             if (n instanceof ChipIONode) {
                 if (n.type === "input") {
                     const port = this.addPort("input", n.ports.outputs[0].name);
+                    console.log('[DEBUG] ChipNode:', this.id, 'added input port:', port.name, 'Total inputs:', this.ports.inputs.length);
                     port.antiPort = n.ports.outputs[0];
                     // Ensure antiPort is linked back if the ChipIONode's port was also just created/resynced
                     // if (n.ports.outputs[0]) { // Removed
@@ -1305,6 +1310,7 @@ class ChipNode extends Node {
                     // } // Removed
                 } else if (n.type === "output") {
                     const port = this.addPort("output", n.ports.inputs[0].name);
+                    console.log('[DEBUG] ChipNode:', this.id, 'added output port:', port.name, 'Total outputs:', this.ports.outputs.length);
                     port.antiPort = n.ports.inputs[0];
                     // Ensure antiPort is linked back
                     // if (n.ports.inputs[0]) { // Removed
@@ -1316,6 +1322,11 @@ class ChipNode extends Node {
         // Recalculate height/width implicitly handled by draw or explicitly if needed
         // this.height = this.calculateHeight(); 
         // this.width = this.calculateWidth(); // assuming calculateWidth exists and is appropriate
+        console.log('[DEBUG] resyncPortsFromChipData finished for ChipNode:', this.id, 'Final input ports:', this.ports.inputs.length, 'Final output ports:', this.ports.outputs.length);
+        this.height = this.calculateHeight(); // Explicitly recalculate height
+        console.log('[DEBUG] ChipNode:', this.id, 'recalculated height to:', this.height);
+        this._needsWidthRecalculation = true;
+        console.log('[DEBUG] ChipNode:', this.id, 'flagged for width recalculation.');
     }
 
     _updateOutputPortsFromChipData() {
