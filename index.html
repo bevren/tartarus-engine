@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Draw Lines with Panning, Zooming, and Scrolling Grid</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+        canvas {
+            padding: 0;
+            margin: 0;
+            user-select: none;
+        }
+
+        .appContainer{
+            width: 100%;
+            height: 100vh;
+            display: flex;
+            flex-direction: row;
+        }
+
+        .renderContainer{
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        #nav{
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            height: 36px;
+            background-color: #242424;
+            color: white;
+            font-family: Consolas;
+            font-size: 1.25rem;
+            user-select: none;
+            overflow-x: auto;
+            overflow-y: hidden;
+        }
+
+        #infobar{
+            width: 40%;
+            height: 100%;
+            padding: 0 1rem;
+            overflow-y: auto;
+        }
+
+        .path{
+            display: flex;
+            align-items: center;
+            height: 100%;
+            padding-right: 0.5rem;
+            padding-left: 0.5rem;
+        }
+
+        .path:hover{
+            background-color: rgba(200, 200, 200, 0.2);
+            cursor: pointer;
+        }
+
+        .props-header{
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+        }
+
+        .props-header h2{
+            flex: 1;
+        }
+
+        .category {
+            margin-bottom: 10px;
+        }
+
+        .search-result {
+            padding: 5px;
+            cursor: pointer;
+        }
+
+        .search-result.selected {
+            background-color: #e0e0e0;
+        }
+
+        .search-result:hover {
+            background-color: #f0f0f0;
+        }
+        
+        .category-title {
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #666;
+        }
+
+        #contextMenuConnection {
+            position: absolute;
+            background-color: #f9f9f9;
+            border: 1px solid #ccc;
+            padding: 5px;
+            display: none;
+        }
+
+        #contextMenuConnection button {
+            display: block;
+            width: 100%;
+            padding: 5px;
+            text-align: left;
+            border: none;
+            background: none;
+            cursor: pointer;
+        }
+
+        #contextMenuConnection button:hover {
+            background-color: #e9e9e9;
+        }
+
+        #contextMenuNode {
+            position: absolute;
+            background-color: #f9f9f9;
+            border: 1px solid #ccc;
+            padding: 5px;
+            display: none;
+        }
+
+        #contextMenuNode button {
+            display: block;
+            width: 100%;
+            padding: 5px;
+            text-align: left;
+            border: none;
+            background: none;
+            cursor: pointer;
+        }
+
+        #contextMenuNode button:hover {
+            background-color: #e9e9e9;
+        }
+
+        #contextMenuIdle {
+            position: absolute;
+            background-color: #f9f9f9;
+            border: 1px solid #ccc;
+            display: none;
+            max-width: 250px;
+            flex-direction: column;
+            width: 250px;
+            height: 180px;
+        }
+
+        #contextMenuIdle input[type="text"] {
+            height: 48px;
+            outline: none;
+            border-radius: 0;
+            border:none;
+            font-size: 18px;
+            padding-left: 5px;
+        }
+
+        #contextMenuIdle #searchResults {
+            background-color: #e9e9e9;
+            padding: 5px;
+            height: 100%;
+            overflow-y: auto;
+        }
+
+        #newChipDialog {
+            padding: 0;
+            overflow: hidden;
+            width: 480px;
+            font-family: Consolas;
+            background-color: #292929;
+        }
+
+        #newChipDialog .dialogTitle {
+            width: 100%;
+            height: 2rem;
+            display: flex;
+            align-items: center;
+            background-color: #18181B;
+            padding: 0.5rem;
+            color: white;
+            font-size: 1.35rem;
+            font-weight: bold;
+        }
+
+        #newChipDialog .dialogContent {
+            display: flex;
+            flex-direction: column;
+            padding-left: 0.5rem;
+            padding-right: 0.5rem;
+            padding-top: 0.75rem;
+            padding-bottom: 0.5rem;
+            gap: 0.75rem;
+            color: white;
+        }
+
+        #newChipDialog .dialogLabel {
+            font-size: 1rem;
+            width: 50px;
+            margin-right: 0.5rem;
+        }
+
+        #newChipDialog input[type="text"] {
+            background-color: #3F3F3F;
+        }
+
+        #newChipDialog input[type="color"] {
+            border-color: #3F3F3F;
+            background-color: #3F3F3F;
+        }
+
+        #newChipDialog input[type="color"]:hover {
+            background-color: #525252;
+            cursor: pointer;
+        }
+
+
+        #newChipDialog .dialogInput {
+            height: 2rem;
+            font-family: Consolas;
+            font-size: 1rem;
+            flex: 1;
+            outline: none;
+            border: none;
+            color: white;
+            padding-left: 0.25rem;
+            
+        }
+
+        #newChipDialog .dialogButton {
+            height: 32px;
+            width: 72px;
+            background-color: #3F3F3F;
+            color: white;
+            border: none;
+            outline: none;
+        }
+
+        #newChipDialog .dialogButton:hover {
+            background-color: #525252;
+            cursor: pointer;
+        }
+
+        #newChipDialog #dialogCloseButton{
+            position: absolute;
+            top: 14px;
+            right: 6px;
+            background-color: transparent;
+            border: none;
+            outline: none;
+            color: #808080;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+
+        #newChipDialog #dialogCloseButton:hover{
+            color: white;
+            cursor: pointer;
+        }
+
+    </style>
+</head>
+<body>
+
+    <dialog id="newChipDialog">
+        <div class="dialogTitle">
+            <span>Save Chip</span>
+
+        </div>
+        <div class="dialogContent">
+            <div style="display:flex; align-items:center; width: 100%;">
+                <label class="dialogLabel" for="chipName">Name:</label>
+                <input id="chipNameInput" class="dialogInput" type="text" id="chipName" placeholder="Name of Chip">
+            </div>
+
+            <div style="display:flex; align-items:center;">
+                <label class="dialogLabel" for="chipColor">Color:</label>
+                <input id="chipColor" type="color" value="#ff0000">
+            </div>
+            <div style="display: flex;">
+                <div style="flex: 1;">
+                    
+                </div>
+                <div class="buttonGroupDialog">
+                    <button class="dialogButton" id="cancelNewChip">Cancel</button>
+                    <button class="dialogButton" id="saveNewChip">Save</button>
+                </div>
+            </div>
+        </div>
+
+        <button id="dialogCloseButton">X</button>
+    </dialog>
+
+    <div id="contextMenuConnection">
+        <button id="deleteConnectionBtn">Delete Connection</button>
+    </div>
+
+    <div id="contextMenuNode">
+        <button id="deleteNodeBtn">Delete Node</button>
+    </div>
+
+    <div id="contextMenuIdle">
+        <input id="nodeSearchInput" type="text" placeholder="search...">
+        <div id="searchResults"></div>
+    </div>
+
+    <div id="webSocketContainer">
+        <input type="text" id="webSocketInput" value="127.0.0.1:6969" placeholder="Host:Port">
+        <button id="webSocketConnectBtn">Connect</button>
+        <span id="webSocketStatus">Not Connected</span>
+    </div>
+
+    <div class="appContainer">
+        <div class="renderContainer">
+            <div id="nav"></div>
+            <canvas id="gameCanvas" width="800" height="600"></canvas>
+        </div>
+        <div id="infobar">
+        </div>
+    </div>
+    <script type="text/javascript" src="./app.js"></script>
+    <script type="text/javascript" src="./index.js"></script>
+</body>
+</html>
